@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>SPIN FINAL</title>
+
+<style>
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;}
+body{
+  background:#0b0b0b;
+  color:#fff;
+  font-family:Arial,sans-serif;
+  overflow:hidden;
+}
+
+/* ================= LOGIN OVERLAY ================= */
+#loginOverlay{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  background:rgba(0,0,0,.95);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.login-box{
+  width:340px;
+  background:#0f0f0f;
+  border:2px solid cyan;
+  box-shadow:0 0 25px cyan;
+  padding:18px;
+  border-radius:10px;
+}
+.login-box h3{text-align:center;margin-bottom:14px}
+.login-box label{font-size:12px;color:#9ff}
+.login-box input{
+  width:100%;
+  padding:10px;
+  margin:6px 0 10px;
+  background:#000;
+  color:cyan;
+  border:2px solid cyan;
+  outline:none;
+}
+.login-box button{
+  width:100%;
+  padding:10px;
+  background:cyan;
+  color:#000;
+  font-weight:bold;
+  border:none;
+  cursor:pointer;
+}
+.login-error{
+  color:#ff5c5c;
+  font-size:12px;
+  text-align:center;
+  display:none;
+}
+
+/* ================= APP ================= */
+#app{display:none}
+
+/* ================= PRIZE ================= */
+.container{
+  display:grid;
+  grid-template-columns:repeat(4,160px);
+  gap:15px;
+  margin:20px 0 0 30px;
+}
+.prize{
+  background:#111;
+  border:2px solid #333;
+  padding:8px;
+  transition:box-shadow .08s linear;
+}
+.prize.active{box-shadow:0 0 14px cyan,0 0 28px cyan;}
+.prize.glow-strong{
+  box-shadow:0 0 18px #00ffff,0 0 36px #00ffff,0 0 60px rgba(0,255,255,.9);
+}
+.prize img{
+  width:100%;
+  height:110px;
+  background:#000;
+  object-fit:contain;
+  border:1px solid #aaa;
+}
+.upload-btn{display:block;font-size:12px;background:#222;text-align:center;cursor:pointer}
+input[type=file]{display:none}
+
+/* ================= CONTROL ================= */
+.control-row{
+  display:flex;
+  gap:15px;
+  margin:15px 0 0 30px;
+  align-items:center;
+}
+.user-box{
+  width:260px;
+  padding:6px;
+  background:#000;
+  box-shadow:0 0 14px rgb(0,255,0);
+}
+.user-box input{
+  width:100%;
+  padding:8px;
+  background:#000;
+  color:#0ff;
+  border:2px solid #fff;
+  outline:none;
+}
+button{padding:10px 26px;cursor:pointer}
+
+/* ================= HISTORY ================= */
+.history{
+  position:absolute;
+  top:20px;
+  left:760px;
+  width:520px;
+  height:90vh;
+  border:2px solid #333;
+  background:#050505;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+}
+.history h3{text-align:center;margin:0 0 10px}
+.history-list{flex:1;overflow-y:auto}
+.history-row{
+  position:relative;
+  display:grid;
+  grid-template-columns:200px 80px 80px;
+  align-items:center;
+  padding:8px;
+  border:2px solid #222;
+  margin-bottom:6px;
+}
+.history-row img{width:50px;height:50px;border:1px solid #aaa;}
+.history-row.claimed{background:rgba(0,120,0,.6);}
+
+/* LATEST (NO RGB) */
+.history-row.latest{
+  background:rgba(0,160,255,.25);
+  box-shadow:inset 0 0 12px rgba(0,255,255,.4);
+}
+.latest-badge{
+  position:absolute;
+  top:4px;
+  right:6px;
+  font-size:9px;
+  padding:2px 6px;
+  background:#00ffff;
+  color:#000;
+  font-weight:bold;
+  border-radius:4px;
+}
+.claimed-text{font-size:10px;color:#0f0}
+
+/* ================= LEADERBOARD ================= */
+.leaderboard{
+  margin:25px 0 0 30px;
+  width:700px;
+  border:2px solid #444;
+  padding:10px;
+}
+.leaderboard-scroll{
+  max-height:220px;
+  overflow-y:auto;
+  border:1px solid #333;
+}
+.lb-table{
+  width:100%;
+  border-collapse:collapse;
+}
+.lb-table th,.lb-table td{
+  border:1px solid #fff;
+  padding:6px;
+  text-align:center;
+  font-size:13px;
+}
+@keyframes rgb{
+  0%{box-shadow:0 0 10px red}
+  33%{box-shadow:0 0 10px lime}
+  66%{box-shadow:0 0 10px cyan}
+}
+.rank1{animation:rgb 1s infinite}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginOverlay">
+  <div class="login-box">
+    <h3>LOGIN</h3>
+    <label>ID</label>
+    <input id="loginId" placeholder="ID">
+    <label>PASS (6 digit angka)</label>
+    <input id="loginPass" type="password" inputmode="numeric" maxlength="6" placeholder="••••••">
+    <div class="login-error" id="loginError">ID atau PASS salah</div>
+    <button onclick="doLogin()">MASUK</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+<div class="container">
+  <div class="prize" id="p1">Prize 1<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,1)"></label><img id="img1"></div>
+  <div class="prize" id="p2">Prize 2<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,2)"></label><img id="img2"></div>
+  <div class="prize" id="p3">Prize 3<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,3)"></label><img id="img3"></div>
+  <div class="prize" id="p4">Prize 4<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,4)"></label><img id="img4"></div>
+  <div class="prize" id="p5">Prize 5<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,5)"></label><img id="img5"></div>
+  <div class="prize" id="p6">Prize 6<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,6)"></label><img id="img6"></div>
+  <div class="prize" id="p7">Prize 7<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,7)"></label><img id="img7"></div>
+  <div class="prize" id="p8">Prize 8<label class="upload-btn">Upload<input type="file" onchange="loadImg(this,8)"></label><img id="img8"></div>
+</div>
+
+<div class="control-row">
+  <div class="user-box">
+    <input id="nameInput" placeholder="NAMA" autocomplete="off">
+  </div>
+  <button onclick="spinWeighted()">SPIN</button>
+</div>
+
+<div class="leaderboard">
+  <h3 style="text-align:center">LEADERBOARD</h3>
+  <div class="leaderboard-scroll">
+    <table class="lb-table">
+      <thead>
+        <tr>
+          <th>RANK</th>
+          <th>NAMA</th>
+          <th>TOTAL SPIN</th>
+          <th>TOTAL SPEND</th>
+        </tr>
+      </thead>
+      <tbody id="lbBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="history">
+  <h3>HISTORY</h3>
+  <div class="history-list" id="historyList"></div>
+</div>
+
+</div>
+
+<script>
+/* ================= LOGIN ================= */
+const LOGIN_ID="klvmtt";
+const LOGIN_PASS="199908";
+
+function doLogin(){
+  if(loginId.value===LOGIN_ID && loginPass.value===LOGIN_PASS){
+    loginOverlay.style.display="none";
+    app.style.display="block";
+  }else{
+    loginError.style.display="block";
+  }
+}
+
+/* ENTER KEY LOGIN */
+document.addEventListener("keydown",e=>{
+  if(loginOverlay.style.display!=="none" && e.key==="Enter"){
+    e.preventDefault();
+    doLogin();
+  }
+});
+
+/* ================= DEVTOOLS BLOCK ================= */
+document.addEventListener("contextmenu",e=>e.preventDefault());
+document.addEventListener("keydown",e=>{
+  if(e.key==="F12" || (e.ctrlKey&&e.shiftKey) || (e.ctrlKey&&e.key==="u")){
+    e.preventDefault();
+  }
+});
+
+/* ================= APP LOGIC ================= */
+const PIN_CODE="199908";
+const STORAGE_KEY="SPIN_GAME_DATA_V1";
+
+let players=Object.create(null);
+let history=[];
+let spinning=false;
+let lastPathIndex=0;
+
+const SPIN_PRICE=2000;
+const weighted=[4,5,5,6,6,6,7,7,7,7,8,8,8,8,8,8];
+const SPIN_PATH=[1,2,3,4,8,7,6,5];
+
+/* SOUND */
+let audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+function tickSound(freq){
+  if(audioCtx.state==="suspended") audioCtx.resume();
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.frequency.value=freq; g.gain.value=0.055;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime+0.035);
+}
+const easeOutCubic=t=>1-Math.pow(1-t,3);
+
+/* STORAGE */
+function saveData(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify({players,history}));
+}
+function loadData(){
+  const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
+  players=d.players||Object.create(null);
+  history=d.history||[];
+}
+loadData();
+
+/* UTIL */
+function loadImg(i,n){
+  const r=new FileReader();
+  r.onload=e=>document.getElementById("img"+n).src=e.target.result;
+  r.readAsDataURL(i.files[0]);
+}
+function getName(){
+  const v=nameInput.value.trim();
+  return v?v.toUpperCase():null;
+}
+
+/* SPIN */
+function spinWeighted(){
+  if(spinning) return;
+  const NAME=getName();
+  if(!NAME) return alert("Masukkan NAMA");
+  if(!players[NAME]) players[NAME]={spin:0,ts:Date.now()};
+  players[NAME].spin++;
+  startSpin(weighted[Math.floor(Math.random()*weighted.length)],NAME);
+}
+function spinForce(p){
+  if(spinning) return;
+  const NAME=getName();
+  if(!NAME) return alert("Masukkan NAMA");
+  if(!players[NAME]) players[NAME]={spin:0,ts:Date.now()};
+  players[NAME].spin++;
+  startSpin(p,NAME);
+}
+
+/* ENGINE */
+function startSpin(target,NAME){
+  spinning=true;
+  const loops=Math.floor(Math.random()*3)+3;
+  const ti=SPIN_PATH.indexOf(target);
+  const fs=(ti-lastPathIndex+SPIN_PATH.length)%SPIN_PATH.length;
+  const total=(loops*SPIN_PATH.length)+fs;
+  const minD=40,maxD=260;
+  let step=0;
+
+  const go=()=>{
+    document.querySelectorAll(".prize").forEach(p=>p.classList.remove("active","glow-strong"));
+    lastPathIndex=(lastPathIndex+1)%SPIN_PATH.length;
+    const el=document.getElementById("p"+SPIN_PATH[lastPathIndex]);
+    const t=step/total, e=easeOutCubic(t);
+    el.classList.add("active");
+    if(e>0.75) el.classList.add("glow-strong");
+    tickSound(Math.max(220,1000-Math.floor(e*720)));
+    step++;
+    if(step>=total){
+      history.unshift({name:NAME,prize:target,claimed:false});
+      if(history.length>20) history.pop();
+      saveData();
+      render();
+      spinning=false;
+      return;
+    }
+    setTimeout(go,Math.floor(minD+e*(maxD-minD)));
+  };
+  go();
+}
+
+/* HOTKEY */
+document.addEventListener("keydown",e=>{
+  if(spinning) return;
+  if(e.key==="F1"){e.preventDefault();spinForce(1);}
+  if(e.key==="F2"){e.preventDefault();spinForce(2);}
+  if(e.key==="F3"){e.preventDefault();spinForce(3);}
+  if(e.key==="F4"){
+    e.preventDefault();
+    if(confirm("Reset LEADERBOARD?") && prompt("PIN:")===PIN_CODE){
+      players=Object.create(null); saveData(); render();
+    }
+  }
+  if(e.key==="F5"){
+    e.preventDefault();
+    if(confirm("Reset HISTORY?") && prompt("PIN:")===PIN_CODE){
+      history=[]; saveData(); render();
+    }
+  }
+});
+
+/* RENDER */
+function render(){
+  lbBody.innerHTML="";
+  Object.entries(players)
+    .sort((a,b)=>b[1].spin-a[1].spin||a[1].ts-b[1].ts)
+    .forEach((d,i)=>{
+      lbBody.innerHTML+=`
+      <tr class="${i===0?'rank1':''}">
+        <td>${i+1}</td>
+        <td>${d[0]}</td>
+        <td>${d[1].spin}</td>
+        <td>${(d[1].spin*SPIN_PRICE).toLocaleString("id-ID")} Rupiah</td>
+      </tr>`;
+    });
+
+  historyList.innerHTML="";
+  history.forEach((x,i)=>{
+    historyList.innerHTML+=`
+    <div class="history-row ${x.claimed?'claimed':''} ${i===0?'latest':''}">
+      ${i===0?'<div class="latest-badge">LATEST</div>':''}
+      <div>${x.name}</div>
+      <img src="${document.getElementById("img"+x.prize).src}">
+      <div>
+        <input type="checkbox" ${x.claimed?'checked':''}
+          onchange="history[${i}].claimed=!history[${i}].claimed;saveData();render()">
+        ${x.claimed?'<div class="claimed-text">CLAIMED</div>':''}
+      </div>
+    </div>`;
+  });
+}
+render();
+</script>
+
+</body>
+</html>
