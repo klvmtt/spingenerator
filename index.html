@@ -112,6 +112,16 @@ input[type=file]{display:none}
 }
 button{padding:10px 26px;cursor:pointer}
 
+/* dropdown payment (baru) */
+.pay-select{
+  padding:10px 14px;
+  background:#000;
+  color:cyan;
+  border:2px solid cyan;
+  outline:none;
+  font-weight:bold;
+}
+
 /* ================= HISTORY ================= */
 .history{
   position:absolute;
@@ -221,6 +231,13 @@ button{padding:10px 26px;cursor:pointer}
   <div class="user-box">
     <input id="nameInput" placeholder="NAMA" autocomplete="off">
   </div>
+
+  <!-- PAYMENT (BARU) -->
+  <select id="payType" class="pay-select">
+    <option value="CASH">CASH</option>
+    <option value="SECRET">SECRET</option>
+  </select>
+
   <button onclick="spinWeighted()">SPIN</button>
 </div>
 
@@ -257,6 +274,7 @@ function doLogin(){
   if(loginId.value===LOGIN_ID && loginPass.value===LOGIN_PASS){
     loginOverlay.style.display="none";
     app.style.display="block";
+    loginError.style.display="none";
   }else{
     loginError.style.display="block";
   }
@@ -280,14 +298,19 @@ document.addEventListener("keydown",e=>{
 
 /* ================= APP LOGIC ================= */
 const PIN_CODE="199908";
-const STORAGE_KEY="SPIN_GAME_DATA_V1";
+
+/* STORAGE KEY (naik versi supaya aman, tapi tetap migrasi data lama) */
+const STORAGE_KEY="SPIN_GAME_DATA_V2";
+
+/* harga spin */
+const CASH_PRICE=2000;     // Rp 2.000
+const SECRET_PRICE=2;      // 2 SECRET
 
 let players=Object.create(null);
 let history=[];
 let spinning=false;
 let lastPathIndex=0;
 
-const SPIN_PRICE=2000;
 const weighted=[4,5,5,6,6,6,7,7,7,7,8,8,8,8,8,8];
 const SPIN_PATH=[1,2,3,4,8,7,6,5];
 
@@ -303,13 +326,44 @@ function tickSound(freq){
 const easeOutCubic=t=>1-Math.pow(1-t,3);
 
 /* STORAGE */
+function normalizePlayersShape(){
+  // migrasi data lama (yang cuma punya {spin, ts}) → anggap semua dulu Rupiah
+  for(const k of Object.keys(players||{})){
+    const p=players[k];
+    if(!p) continue;
+    if(typeof p.spin!=="number") p.spin=0;
+    if(typeof p.ts!=="number") p.ts=Date.now();
+
+    // jika format lama belum punya cash/secret
+    if(typeof p.cash!=="number" && typeof p.secret!=="number"){
+      p.cash = p.spin * CASH_PRICE;
+      p.secret = 0;
+    }else{
+      if(typeof p.cash!=="number") p.cash=0;
+      if(typeof p.secret!=="number") p.secret=0;
+    }
+  }
+}
+
 function saveData(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify({players,history}));
 }
+
 function loadData(){
-  const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
-  players=d.players||Object.create(null);
-  history=d.history||[];
+  // coba load versi baru
+  const d2=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
+
+  // fallback load versi lama (V1) kalau V2 kosong tapi V1 ada
+  if(!d2.players){
+    const d1=JSON.parse(localStorage.getItem("SPIN_GAME_DATA_V1")||"{}");
+    players=d1.players||Object.create(null);
+    history=d1.history||[];
+  }else{
+    players=d2.players||Object.create(null);
+    history=d2.history||[];
+  }
+
+  normalizePlayersShape();
 }
 loadData();
 
@@ -323,22 +377,45 @@ function getName(){
   const v=nameInput.value.trim();
   return v?v.toUpperCase():null;
 }
+function getPay(){
+  return (payType && payType.value) ? payType.value : "CASH";
+}
+function addSpend(NAME){
+  const pay=getPay();
+  if(pay==="SECRET") players[NAME].secret += SECRET_PRICE;
+  else players[NAME].cash += CASH_PRICE;
+}
+function formatSpend(p){
+  const parts=[];
+  if(p.cash>0) parts.push("Rp " + p.cash.toLocaleString("id-ID"));
+  if(p.secret>0) parts.push(p.secret + " SECRET");
+  return parts.join(" / ");
+}
 
 /* SPIN */
 function spinWeighted(){
   if(spinning) return;
   const NAME=getName();
   if(!NAME) return alert("Masukkan NAMA");
-  if(!players[NAME]) players[NAME]={spin:0,ts:Date.now()};
+
+  if(!players[NAME]) players[NAME]={spin:0,cash:0,secret:0,ts:Date.now()};
+
   players[NAME].spin++;
+  addSpend(NAME);
+
   startSpin(weighted[Math.floor(Math.random()*weighted.length)],NAME);
 }
+
 function spinForce(p){
   if(spinning) return;
   const NAME=getName();
   if(!NAME) return alert("Masukkan NAMA");
-  if(!players[NAME]) players[NAME]={spin:0,ts:Date.now()};
+
+  if(!players[NAME]) players[NAME]={spin:0,cash:0,secret:0,ts:Date.now()};
+
   players[NAME].spin++;
+  addSpend(NAME);
+
   startSpin(p,NAME);
 }
 
@@ -361,6 +438,7 @@ function startSpin(target,NAME){
     if(e>0.75) el.classList.add("glow-strong");
     tickSound(Math.max(220,1000-Math.floor(e*720)));
     step++;
+
     if(step>=total){
       history.unshift({name:NAME,prize:target,claimed:false});
       if(history.length>20) history.pop();
@@ -383,13 +461,17 @@ document.addEventListener("keydown",e=>{
   if(e.key==="F4"){
     e.preventDefault();
     if(confirm("Reset LEADERBOARD?") && prompt("PIN:")===PIN_CODE){
-      players=Object.create(null); saveData(); render();
+      players=Object.create(null);
+      saveData();
+      render();
     }
   }
   if(e.key==="F5"){
     e.preventDefault();
     if(confirm("Reset HISTORY?") && prompt("PIN:")===PIN_CODE){
-      history=[]; saveData(); render();
+      history=[];
+      saveData();
+      render();
     }
   }
 });
@@ -400,12 +482,13 @@ function render(){
   Object.entries(players)
     .sort((a,b)=>b[1].spin-a[1].spin||a[1].ts-b[1].ts)
     .forEach((d,i)=>{
+      const p=d[1];
       lbBody.innerHTML+=`
       <tr class="${i===0?'rank1':''}">
         <td>${i+1}</td>
         <td>${d[0]}</td>
-        <td>${d[1].spin}</td>
-        <td>${(d[1].spin*SPIN_PRICE).toLocaleString("id-ID")} Rupiah</td>
+        <td>${p.spin}</td>
+        <td>${formatSpend(p)}</td>
       </tr>`;
     });
 
