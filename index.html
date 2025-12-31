@@ -112,7 +112,6 @@ input[type=file]{display:none}
 }
 button{padding:10px 26px;cursor:pointer}
 
-/* dropdown payment (baru) */
 .pay-select{
   padding:10px 14px;
   background:#000;
@@ -148,8 +147,6 @@ button{padding:10px 26px;cursor:pointer}
 }
 .history-row img{width:50px;height:50px;border:1px solid #aaa;}
 .history-row.claimed{background:rgba(0,120,0,.6);}
-
-/* LATEST (NO RGB) */
 .history-row.latest{
   background:rgba(0,160,255,.25);
   box-shadow:inset 0 0 12px rgba(0,255,255,.4);
@@ -205,9 +202,9 @@ button{padding:10px 26px;cursor:pointer}
   <div class="login-box">
     <h3>LOGIN</h3>
     <label>ID</label>
-    <input id="loginId" placeholder="ID">
+    <input id="loginId" autofocus>
     <label>PASS (6 digit angka)</label>
-    <input id="loginPass" type="password" inputmode="numeric" maxlength="6" placeholder="••••••">
+    <input id="loginPass" type="password" inputmode="numeric" maxlength="6">
     <div class="login-error" id="loginError">ID atau PASS salah</div>
     <button onclick="doLogin()">MASUK</button>
   </div>
@@ -231,13 +228,10 @@ button{padding:10px 26px;cursor:pointer}
   <div class="user-box">
     <input id="nameInput" placeholder="NAMA" autocomplete="off">
   </div>
-
-  <!-- PAYMENT (BARU) -->
   <select id="payType" class="pay-select">
     <option value="CASH">CASH</option>
     <option value="SECRET">SECRET</option>
   </select>
-
   <button onclick="spinWeighted()">SPIN</button>
 </div>
 
@@ -269,16 +263,7 @@ button{padding:10px 26px;cursor:pointer}
 /* ================= LOGIN ================= */
 const LOGIN_ID="klvmtt";
 const LOGIN_PASS="199908";
-
-function doLogin(){
-  if(loginId.value===LOGIN_ID && loginPass.value===LOGIN_PASS){
-    loginOverlay.style.display="none";
-    app.style.display="block";
-    loginError.style.display="none";
-  }else{
-    loginError.style.display="block";
-  }
-}
+const PIN_CODE="199908";
 
 /* ENTER KEY LOGIN */
 document.addEventListener("keydown",e=>{
@@ -297,14 +282,9 @@ document.addEventListener("keydown",e=>{
 });
 
 /* ================= APP LOGIC ================= */
-const PIN_CODE="199908";
-
-/* STORAGE KEY (naik versi supaya aman, tapi tetap migrasi data lama) */
 const STORAGE_KEY="SPIN_GAME_DATA_V2";
-
-/* harga spin */
-const CASH_PRICE=2000;     // Rp 2.000
-const SECRET_PRICE=2;      // 2 SECRET
+const CASH_PRICE=2000;
+const SECRET_PRICE=2;
 
 let players=Object.create(null);
 let history=[];
@@ -314,58 +294,28 @@ let lastPathIndex=0;
 const weighted=[4,5,5,6,6,6,7,7,7,7,8,8,8,8,8,8];
 const SPIN_PATH=[1,2,3,4,8,7,6,5];
 
-/* SOUND */
-let audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-function tickSound(freq){
-  if(audioCtx.state==="suspended") audioCtx.resume();
-  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-  o.frequency.value=freq; g.gain.value=0.055;
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime+0.035);
-}
-const easeOutCubic=t=>1-Math.pow(1-t,3);
-
 /* STORAGE */
-function normalizePlayersShape(){
-  // migrasi data lama (yang cuma punya {spin, ts}) → anggap semua dulu Rupiah
-  for(const k of Object.keys(players||{})){
-    const p=players[k];
-    if(!p) continue;
-    if(typeof p.spin!=="number") p.spin=0;
-    if(typeof p.ts!=="number") p.ts=Date.now();
-
-    // jika format lama belum punya cash/secret
-    if(typeof p.cash!=="number" && typeof p.secret!=="number"){
-      p.cash = p.spin * CASH_PRICE;
-      p.secret = 0;
-    }else{
-      if(typeof p.cash!=="number") p.cash=0;
-      if(typeof p.secret!=="number") p.secret=0;
-    }
-  }
-}
-
 function saveData(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify({players,history}));
 }
-
 function loadData(){
-  // coba load versi baru
-  const d2=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
-
-  // fallback load versi lama (V1) kalau V2 kosong tapi V1 ada
-  if(!d2.players){
-    const d1=JSON.parse(localStorage.getItem("SPIN_GAME_DATA_V1")||"{}");
-    players=d1.players||Object.create(null);
-    history=d1.history||[];
-  }else{
-    players=d2.players||Object.create(null);
-    history=d2.history||[];
-  }
-
-  normalizePlayersShape();
+  const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
+  players=d.players||Object.create(null);
+  history=d.history||[];
 }
 loadData();
+
+/* LOGIN */
+function doLogin(){
+  if(loginId.value===LOGIN_ID && loginPass.value===LOGIN_PASS){
+    loginOverlay.style.display="none";
+    app.style.display="block";
+    loginError.style.display="none";
+    render();
+  }else{
+    loginError.style.display="block";
+  }
+}
 
 /* UTIL */
 function loadImg(i,n){
@@ -377,20 +327,6 @@ function getName(){
   const v=nameInput.value.trim();
   return v?v.toUpperCase():null;
 }
-function getPay(){
-  return (payType && payType.value) ? payType.value : "CASH";
-}
-function addSpend(NAME){
-  const pay=getPay();
-  if(pay==="SECRET") players[NAME].secret += SECRET_PRICE;
-  else players[NAME].cash += CASH_PRICE;
-}
-function formatSpend(p){
-  const parts=[];
-  if(p.cash>0) parts.push("Rp " + p.cash.toLocaleString("id-ID"));
-  if(p.secret>0) parts.push(p.secret + " SECRET");
-  return parts.join(" / ");
-}
 
 /* SPIN */
 function spinWeighted(){
@@ -399,22 +335,23 @@ function spinWeighted(){
   if(!NAME) return alert("Masukkan NAMA");
 
   if(!players[NAME]) players[NAME]={spin:0,cash:0,secret:0,ts:Date.now()};
-
   players[NAME].spin++;
-  addSpend(NAME);
+  payType.value==="SECRET"
+    ? players[NAME].secret+=SECRET_PRICE
+    : players[NAME].cash+=CASH_PRICE;
 
   startSpin(weighted[Math.floor(Math.random()*weighted.length)],NAME);
 }
-
 function spinForce(p){
   if(spinning) return;
   const NAME=getName();
   if(!NAME) return alert("Masukkan NAMA");
 
   if(!players[NAME]) players[NAME]={spin:0,cash:0,secret:0,ts:Date.now()};
-
   players[NAME].spin++;
-  addSpend(NAME);
+  payType.value==="SECRET"
+    ? players[NAME].secret+=SECRET_PRICE
+    : players[NAME].cash+=CASH_PRICE;
 
   startSpin(p,NAME);
 }
@@ -426,28 +363,21 @@ function startSpin(target,NAME){
   const ti=SPIN_PATH.indexOf(target);
   const fs=(ti-lastPathIndex+SPIN_PATH.length)%SPIN_PATH.length;
   const total=(loops*SPIN_PATH.length)+fs;
-  const minD=40,maxD=260;
   let step=0;
 
   const go=()=>{
     document.querySelectorAll(".prize").forEach(p=>p.classList.remove("active","glow-strong"));
     lastPathIndex=(lastPathIndex+1)%SPIN_PATH.length;
     const el=document.getElementById("p"+SPIN_PATH[lastPathIndex]);
-    const t=step/total, e=easeOutCubic(t);
     el.classList.add("active");
-    if(e>0.75) el.classList.add("glow-strong");
-    tickSound(Math.max(220,1000-Math.floor(e*720)));
     step++;
 
     if(step>=total){
       history.unshift({name:NAME,prize:target,claimed:false});
-      if(history.length>20) history.pop();
-      saveData();
-      render();
-      spinning=false;
-      return;
+      saveData(); render();
+      spinning=false; return;
     }
-    setTimeout(go,Math.floor(minD+e*(maxD-minD)));
+    setTimeout(go,60);
   };
   go();
 }
@@ -462,16 +392,14 @@ document.addEventListener("keydown",e=>{
     e.preventDefault();
     if(confirm("Reset LEADERBOARD?") && prompt("PIN:")===PIN_CODE){
       players=Object.create(null);
-      saveData();
-      render();
+      saveData(); render();
     }
   }
   if(e.key==="F5"){
     e.preventDefault();
     if(confirm("Reset HISTORY?") && prompt("PIN:")===PIN_CODE){
       history=[];
-      saveData();
-      render();
+      saveData(); render();
     }
   }
 });
@@ -488,7 +416,7 @@ function render(){
         <td>${i+1}</td>
         <td>${d[0]}</td>
         <td>${p.spin}</td>
-        <td>${formatSpend(p)}</td>
+        <td>Rp ${p.cash.toLocaleString("id-ID")} / ${p.secret} SECRET</td>
       </tr>`;
     });
 
